@@ -1,15 +1,9 @@
 import dotenv from "dotenv";
 dotenv.config();
-import { Wallet, ethers } from "ethers";
-import {
-  AlphaRouter,
-  SwapAndAddOptions,
-  SwapType,
-} from "@uniswap/smart-order-router";
-import { Token, CurrencyAmount, TradeType, Percent } from "@uniswap/sdk-core";
-import IUniswapv3Factory from "@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json";
+import { ethers } from "ethers";
+import { AlphaRouter } from "@uniswap/smart-order-router";
+import { Token, CurrencyAmount, TradeType } from "@uniswap/sdk-core";
 import IUniswapv3PoolFactory from "@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json";
-import SwapRouter from "@uniswap/v3-periphery/artifacts/contracts/interfaces/ISwapRouter.sol/ISwapRouter.json";
 import ERC20Abi from "../erc20.json";
 import { FlashbotsBundleProvider } from "@flashbots/ethers-provider-bundle";
 

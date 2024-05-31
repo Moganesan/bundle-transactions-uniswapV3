@@ -1,12 +1,40 @@
-Send bundle transactions using flashbot bundler <br/>
-.env<br/>
-INFURA_PROJECT_ID=4950a9bc37a04f44b99b5625d53f8d79<br/>
-PRIVATE_KEYS=b985fdb9584064288c2b468cff4a6432a33e1cf91fb8c93992353e464d543e32<br/>
-<br/>
+# Flashbots Bundled Transactions Script
 
-The main goal of this script is to send multiple Uniswap swap transactions in a single transaction using Flashbots.
-<br/>
+This script allows you to send multiple Uniswap swap transactions in a single bundled transaction using Flashbots on the Sepolia testnet.
 
-src/createLiquidityPool.ts -> to create test liquidity pool token for performing swap
-<br />
-src/index.ts -> Send the bundled transaction to Flashbots, and it will mine the transaction on the Sepolia testnet.
+## Features
+
+1. **Bundle Transactions:**
+   - Combine multiple Uniswap swap transactions into a single bundled transaction.
+2. **Transaction Management:**
+
+   - Efficiently manage and send transactions through Flashbots.
+
+3. **Transactions Prioritization:**
+
+   - Prioritizing transactions based of gasLimit
+
+4. **Sepolia Network Integration:**
+   - Utilize the Flashbots Sepolia testnet for transaction mining.
+
+## Getting Starte
+
+## Packages
+
+- @uniswap/v3-core
+- @uniswap/v3-periphery/
+- @flashbots/ethers-provider-bundle
+
+### Configuration
+
+- run npx ts-node src/createLiquidityPool.ts to create new liquidityPool and get the token pairs and pool contract addres.
+- run npx ts-node src/index.ts to send bundled tx to sepolia using flashbot ethereum provider
+- A Flashbots relay endpoint
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/flashbots-bundled-transactions.git
+   cd flashbots-bundled-transactions
+   ```
