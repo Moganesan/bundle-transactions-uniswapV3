@@ -86,7 +86,7 @@ async function main() {
     method: "blxr_simulate_bundle",
     id: "1",
     params: {
-      transaction: transactions,
+      transaction: prioritizeTransactions(transactions),
       block_number: "0xba10d0",
       state_block_number: "latest",
       timestamp: 1617806320,
@@ -95,4 +95,11 @@ async function main() {
   });
 }
 
+function prioritizeTransactions(transactions) {
+  return transactions.sort((a, b) => {
+    const feeA = ethers.utils.parseUnits(a.gasPrice.toString(), "gwei");
+    const feeB = ethers.utils.parseUnits(b.gasPrice.toString(), "gwei");
+    return feeB.sub(feeA);
+  });
+}
 main();
