@@ -19,6 +19,7 @@
     "ethers": "^5.7.2"
   },
   "dependencies": {
+    "@flashbots/ethers-provider-bundle": "^1.0.0",
     "@uniswap/sdk-core": "^5.0.0",
     "@uniswap/smart-order-router": "^3.33.1",
     "@uniswap/v3-core": "^1.0.1",
