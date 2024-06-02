@@ -6,13 +6,12 @@ import IUniswapv3PoolFactory from "@uniswap/v3-core/artifacts/contracts/UniswapV
 import INonfungiblePositionManager from "@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json";
 import ERC20Abi from "../erc20.json";
 
-const provider = new ethers.providers.InfuraProvider(
-  "sepolia",
-  process.env.INFURA_PROJECT_ID
-);
+const provider = new ethers.providers.JsonRpcProvider({
+  url: "https://eth-sepolia.g.alchemy.com/v2/HWKGQwzDCboz2c2pOOUoVv1ofzuVQ87A",
+});
 
 const wallet = new ethers.Wallet(
-  "b985fdb9584064288c2b468cff4a6432a33e1cf91fb8c93992353e464d543e32",
+  "a4c8588868b95c74b4c358c9c6440de53a79b192a38d244716a14d01e3eb145d",
   provider
 );
 
@@ -47,14 +46,18 @@ async function createAndAddLiquidity() {
 
   try {
     // create pool 0.3% fee
-    const feeData = await provider.getFeeData();
-    const res = await factory.createPool(usdcToken, usdtToken, 3000, {
-      gasLimit: (await provider.getBlock("latest")).gasLimit,
-      maxFeePerGas: feeData.maxFeePerGas,
-      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
-    });
-    await res.wait();
-    console.log("Create Pool", res);
+
+    // const feeData = await provider.getFeeData();
+
+    // const gasLimit = ethers.BigNumber.from(2)
+    //   .mul(ethers.utils.parseUnits("1", "ether"))
+    //   .div(feeData.gasPrice);
+
+    // const res = await factory.createPool(usdcToken, usdtToken, 3000);
+
+    // console.log(res);
+    // await res.wait();
+    // console.log("Create Pool", res);
     const poolAddress = await factory.getPool(usdcToken, usdtToken, 3000);
     const pool = new ethers.Contract(
       poolAddress,
@@ -62,12 +65,15 @@ async function createAndAddLiquidity() {
       wallet
     );
 
+    // const poolAddress = "0xe8fa8F276Dc0315adD939977b5C6c58C79cDA147";
+
     console.log("Pool Address", poolAddress);
 
     // initialize pool
     await pool.initialize(ethers.utils.parseUnits("1", 18), {
-      gasLimit: "30000",
+      gasLimit: (await provider.getBlock("latest")).gasLimit,
     });
+    console.log("Pool Initialized");
   } catch (err) {
     console.log("Error From Creatng the pool", err);
     console.log(err);
@@ -98,7 +104,7 @@ async function createAndAddLiquidity() {
         recipient: wallet.address,
         deadline: Math.floor(Date.now() / 1000) + 60 * 10,
       },
-      { gasLimit: "30000" }
+      { gasLimit: (await provider.getBlock("latest")).gasLimit }
     );
 
     console.log("Liquidity Added Successfully!");

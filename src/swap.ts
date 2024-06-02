@@ -1,3 +1,4 @@
+// @ts-nocheck
 import dotenv from "dotenv";
 dotenv.config();
 import { ethers } from "ethers";
@@ -5,20 +6,22 @@ import { AlphaRouter } from "@uniswap/smart-order-router";
 import { Token, CurrencyAmount, TradeType } from "@uniswap/sdk-core";
 import IUniswapv3PoolFactory from "@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json";
 import ERC20Abi from "../erc20.json";
-// import { FlashbotsBundleProvider } from "@flashbots/ethers-provider-bundle";
+import { FlashbotsBundleProvider, FlashbotsBundleResolution } from "./flashbot";
 
 const provider = new ethers.providers.InfuraProvider(
   "sepolia",
-  process.env.INFURA_PROJECT_ID
+  "4950a9bc37a04f44b99b5625d53f8d79"
 );
 
 const wallet = new ethers.Wallet(
-  "a4c8588868b95c74b4c358c9c6440de53a79b192a38d244716a14d01e3eb145d",
+  "b985fdb9584064288c2b468cff4a6432a33e1cf91fb8c93992353e464d543e32",
   provider
 );
 
+let nonceTracker = 0;
+
 const poolAddress = "0xe8fa8F276Dc0315adD939977b5C6c58C79cDA147"; // USDC/USDT
-const swapRouterAddress = "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD";
+const swapRouterAddress = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
 
 const name0 = "Usdc";
 const symbol0 = "USDC";
@@ -32,16 +35,20 @@ const address1 = "0x7903d1F60f236EE9d496fEe13B793683f411a460";
 
 async function createSwapOrder(
   wallet,
-  amountIn,
   tokenIn,
   tokenOut,
+  amountIn,
   gasPrice,
   gasLimit
 ) {
   // give approval to the router contract to transfer tokens
-  await getTokenTransferApproval(tokenIn, swapRouterAddress);
+  // await getTokenTransferApproval(tokenIn, swapRouterAddress);
 
-  await getTokenTransferApproval(tokenOut, swapRouterAddress);
+  // console.log("Approved token in");
+
+  // await getTokenTransferApproval(tokenOut, swapRouterAddress);
+
+  // console.log("Approved token out");
 
   const router = new AlphaRouter({ chainId: 11155111, provider });
 
@@ -49,7 +56,7 @@ async function createSwapOrder(
   const outputToken = new Token(11155111, tokenOut, 18);
 
   const amountInBigInt = ethers.utils
-    .parseUnits(amountIn.toString(), inputToken.decimals)
+    .parseUnits(amountIn.toString(), 18)
     .toString();
   try {
     const route = await router.route(
@@ -69,7 +76,7 @@ async function createSwapOrder(
 
     return transaction;
   } catch (err) {
-    console.log("Router Error");
+    console.log("Router Error", err);
   }
 }
 
@@ -82,18 +89,22 @@ async function signTransaction(transaction) {
 }
 
 export async function getTokenTransferApproval(
-  token: Token,
+  token: string,
   spenderAddress: string
 ) {
   const TOKEN_AMOUNT_TO_APPROVE_FOR_TRANSFER = 1000000000000;
 
   try {
-    const tokenContract = new ethers.Contract(token.address, ERC20Abi, wallet);
-
+    const tokenContract = new ethers.Contract(token, ERC20Abi, wallet);
+    nonceTracker += 1;
     const transaction = await tokenContract.approve(
       spenderAddress,
-      TOKEN_AMOUNT_TO_APPROVE_FOR_TRANSFER
+      TOKEN_AMOUNT_TO_APPROVE_FOR_TRANSFER,
+      {
+        nonce: nonceTracker,
+      }
     );
+    console.log("Approve Tx", transaction);
     await transaction.wait();
   } catch (e) {
     console.log("Approve Error");
@@ -126,52 +137,50 @@ async function getPoolInfo() {
   };
 }
 
-// async function sendFlashbotsBundle(transactions) {
-//   const provider = new ethers.providers.JsonRpcProvider(
-//     process.env.ETH_NODE_URL
-//   );
-//   const flashbotsProvider = await FlashbotsBundleProvider.create(
-//     provider,
-//     wallet,
-//     "‘https://relay-sepolia.flashbots.net"
-//   );
-
-//   const bundleSubmission: any = await flashbotsProvider.sendBundle(
-//     transactions.map((tx) => ({ signedTransaction: tx })),
-//     Math.floor(Date.now() / 1000) + 60 // Target block time
-//   );
-
-//   const bundleReceipt = bundleSubmission.wait();
-//   if (bundleReceipt === 0) {
-//     console.log(" - Transaction is mined - ");
-//     for (const signedTx of transactions) {
-//       console.log("Transaction Hash:", ethers.utils.keccak256(signedTx));
-//     }
-//   } else {
-//     console.log("Error submitting transaction");
-//   }
-// }
+async function sendFlashbotsBundle(transactions) {
+  const flashbotsProvider = await FlashbotsBundleProvider.create(
+    provider,
+    wallet,
+    "https://relay-sepolia.flashbots.net"
+  );
+  const bundleSubmission: any = await flashbotsProvider.sendBundle(
+    transactions.map((tx) => ({ signedTransaction: tx })),
+    Math.floor(Date.now() / 1000) + 60 // Target block time
+  );
+  const bundleReceipt = bundleSubmission.wait();
+  if (bundleReceipt === 0) {
+    console.log(" - Transaction is mined - ");
+    for (const signedTx of transactions) {
+      console.log("Transaction Hash:", ethers.utils.keccak256(signedTx));
+    }
+  } else {
+    console.log("Error submitting transaction");
+  }
+}
 
 async function main() {
-  console.log("Works");
-  // const privateKeys = process.env.PRIVATE_KEYS.split(",");
-  // const wallets = privateKeys.map((pk) => new ethers.Wallet(pk, provider));
-  // const transactions = [];
-  // const gasLimits = [
-  //   ethers.utils.parseUnits("10000", "gwei"),
-  //   ethers.utils.parseUnits("20000", "gwei"),
-  //   ethers.utils.parseUnits("40000", "gwei"),
-  //   ethers.utils.parseUnits("30000", "gwei"),
-  // ];
-  // const exampleTx = await createSwapOrder(
-  //   wallet.address,
-  //   1,
-  //   address0,
-  //   address1,
-  //   20,
-  //   ethers.utils.parseUnits("40000", "gwei")
-  // );
-  // console.log(exampleTx);
+  nonceTracker = await wallet.getTransactionCount();
+  console.log(nonceTracker);
+  const privateKeys = process.env.PRIVATE_KEYS.split(",");
+  const wallets = privateKeys.map((pk) => new ethers.Wallet(pk, provider));
+  const transactions = [];
+  const gasLimits = [
+    ethers.utils.parseUnits("60000", "gwei"),
+    ethers.utils.parseUnits("65000", "gwei"),
+    ethers.utils.parseUnits("40000", "gwei"),
+    ethers.utils.parseUnits("30000", "gwei"),
+  ];
+
+  const exampleTx = await createSwapOrder(
+    wallet,
+    address0,
+    address1,
+    10,
+    20,
+    gasLimits[1]
+  );
+
+  console.log(exampleTx);
   // for (let i = 0; i < 4; i++) {
   //   const transaction = await createSwapOrder(
   //     wallets[0],
@@ -183,7 +192,7 @@ async function main() {
   //   );
   //   transactions.push(transaction);
   // }
-  // // prioritize high gas tx
+  // prioritize high gas tx
   // const tx = prioritizeTransactions(transactions);
   // const signedTransactions = tx.map((tx) => signTransaction(tx));
   // sendFlashbotsBundle(signedTransactions);
