@@ -13,8 +13,19 @@ import {
   V3_CORE_FACTORY_ADDRESSES,
   SWAP_ROUTER_02_ADDRESSES,
 } from "@uniswap/sdk-core";
-import { AlphaRouter, SwapType, SwapRoute } from "@uniswap/smart-order-router";
+import {
+  AlphaRouter,
+  SwapType,
+  SwapRoute,
+  ProviderGasError,
+} from "@uniswap/smart-order-router";
 import { FlashbotsBundleProvider } from "./flashbot";
+import { LegacyTransaction } from "@ethereumjs/tx";
+import { Common, CustomChain } from "@ethereumjs/common";
+import { bytesToHex } from "@ethereumjs/util";
+
+import axios from "axios";
+import base64 from "base-64";
 
 const ERC20Abi = [
   {
@@ -480,6 +491,13 @@ const provider = new ethers.providers.JsonRpcProvider(
   "https://polygon-mainnet.infura.io/v3/4950a9bc37a04f44b99b5625d53f8d79"
 );
 
+const Polygon = Common.custom(CustomChain.PolygonMainnet);
+
+const privateKay = Buffer.from(
+  "f659c323c68c70f640251b97ba253e52d1a568999a4da0aea129c13d054155f1",
+  "hex"
+);
+
 const wallet = new ethers.Wallet(
   "f659c323c68c70f640251b97ba253e52d1a568999a4da0aea129c13d054155f1",
   provider
@@ -571,17 +589,24 @@ async function executeSwap(route: SwapRoute, gasLimit: BigNumber) {
 
   console.log("Sending swap transaction...");
   const signer = wallet;
-  const swapTx = {
-    data: route.methodParameters.calldata,
-    to: SWAP_ROUTER_ADDRESS,
-    value: route.methodParameters.value,
-    from: signer.address,
-    // maxFeePerGas: maxFeePerGas,
-    gasLimit: gasLimit,
-    // maxPriorityFeePerGas: maxPriorityFeePerGas,
-  };
 
-  return swapTx;
+  const swapTx = LegacyTransaction.fromTxData(
+    {
+      data: route.methodParameters.calldata,
+      to: SWAP_ROUTER_ADDRESS,
+      value: route.methodParameters.value,
+      nonce: await provider.getTransactionCount(wallet.address, "latest"),
+      // maxFeePerGas: maxFeePerGas,
+      gasLimit: ethers.utils.hexlify(30000),
+      // maxPriorityFeePerGas: maxPriorityFeePerGas,
+    },
+    { common: Polygon }
+  );
+  swapTx.sign(privateKay);
+
+  const serializedTx = swapTx.serialize();
+
+  return bytesToHex(serializedTx);
 }
 
 async function signTransaction(transaction: any) {
@@ -630,47 +655,88 @@ async function main() {
 
   const transactions = [];
 
-  for (let i = 0; i < 4; i++) {
-    const route = await generateRoute(
-      tokenIn,
-      ethers.utils.parseEther("0.005"),
-      tokenOut
-    );
-    const swap = await executeSwap(route, gasLimits[0]);
-    transactions.push(swap);
-  }
-
-  const prioritizeTransactionsres: any = prioritizeTransactions(transactions);
-
-  const signedTx = prioritizeTransactionsres.map((tx: any) =>
-    signTransaction(tx)
+  const route = await generateRoute(
+    tokenIn,
+    ethers.utils.parseEther("0.005"),
+    tokenOut
   );
+  // const swapTxDetails = await executeSwap(route, gasLimits[0]);
+  // const signedTx = await signTransaction(swapTxDetails);
+  const signedSwapTx = await executeSwap(route, gasLimits[0]);
+  console.log("Signed Tx", signedSwapTx);
+  // return;
+  // sendFlashbotsBundle([swapTxDetails]);
+  // try {
+  //   if (signedTx) {
+  //     const tx = await provider.sendTransaction(signedTx);
 
-  sendFlashbotsBundle(signedTx);
+  //     console.log(tx);
+  //     const txRes = tx.wait();
+  //     console.log(txRes);
+  //     console.log("TX SUccess");
+  //     return;
+  //   }
+  // } catch (err) {
+  //   console.log("Send Tx Error", err);
+  //   return;
+  // }
+
+  // transactions.push(signedTx);
+
+  // for (let i = 0; i < 4; i++) {
+  //   const route = await generateRoute(
+  //     tokenIn,
+  //     ethers.utils.parseEther("0.005"),
+  //     tokenOut
+  //   );
+  //   const swap = await executeSwap(route, gasLimits[0]);
+  //   transactions.push(swap);
+  // }
+
+  // const prioritizeTransactionsres: any = prioritizeTransactions(transactions);
+
+  // const signedTx = prioritizeTransactionsres.map((tx: any) =>
+  //   signTransaction(tx)
+  // );
+
+  // sendFlashbotsBundle([signedSwapTx]);
 }
 
 async function sendFlashbotsBundle(transactions: any) {
-  const provider = new ethers.providers.JsonRpcProvider(
-    process.env.ETH_NODE_URL
-  );
-  const flashbotsProvider = await FlashbotsBundleProvider.create(
-    provider,
-    wallet
-  );
+  // Send the bundle to BloxRoute
 
-  const bundleSubmission: any = await flashbotsProvider.sendBundle(
-    transactions.map((tx: any) => ({ signedTransaction: tx })),
-    Math.floor(Date.now() / 1000) + 60 // Target block time
-  );
+  // Define timestamps
+  const minTimestamp = Math.floor(Date.now() / 1000); // Current time in seconds
+  const maxTimestamp = minTimestamp + 600; // 10 minutes from now
+  console.log(transactions[0].substring(2));
+  const accountId = "361e64d0-49b9-41e9-9535-a7811365f6ec";
+  const secrethash = "5da7da03e1b0047b8bbbd1a89a956881";
+  const authHeader = base64.encode(`${accountId}:${secrethash}`);
+  try {
+    const response: any = await axios.post(
+      `https://mev.api.blxrbdn.com`,
+      {
+        id: "1",
+        method: "blxr_submit_bundle",
+        params: {
+          transaction: [transactions[0].substring(2)],
+          block_number: ethers.utils.hexlify(
+            (await provider.getBlockNumber()) + 100
+          ),
+        },
+      },
+      {
+        headers: {
+          Authorization: `MzYxZTY0ZDAtNDliOS00MWU5LTk1MzUtYTc4MTEzNjVmNmVjOjVkYTdkYTAzZTFiMDA0N2I4YmJiZDFhODlhOTU2ODgx`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-  const bundleReceipt = bundleSubmission.wait();
-  if (bundleReceipt === 0) {
-    console.log(" - Transaction is mined - ");
-    for (const signedTx of transactions) {
-      console.log("Transaction Hash:", ethers.utils.keccak256(signedTx));
-    }
-  } else {
-    console.log("Error submitting transaction");
+    console.log("Bundle sent:", response.data);
+  } catch (error: any) {
+    console.log(JSON.stringify(error));
+    console.error("Error sending bundle:");
   }
 }
 main();
